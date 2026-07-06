@@ -8,7 +8,7 @@ services:
     runtime: node
     region: oregon # or any region you prefer: oregon, frankfurt, singapore, ohio
     plan: free # free tier - spins down after 15 min inactivity
-    buildCommand: cd server && npm install && npm run build && npx prisma generate
+    buildCommand: cd server && npm install --include=dev && npx prisma generate && npm run build
     startCommand: cd server && npx prisma migrate deploy && npm start
     healthCheckPath: /health
     envVars:

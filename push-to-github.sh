@@ -1,0 +1,51 @@
+#!/bin/bash
+
+echo "========================================"
+echo "  Push Talkers to GitHub"
+echo "========================================"
+echo ""
+
+# Check if git is initialized
+if [ ! -d .git ]; then
+    echo "Initializing Git repository..."
+    git init
+    git remote add origin https://github.com/Ayupanchal18/Talkers.git
+    echo ""
+fi
+
+# Show status
+echo "Current Git Status:"
+echo "-------------------"
+git status
+echo ""
+
+# Confirm with user
+read -p "Do you want to add all files and push to GitHub? (Y/N): " confirm
+if [[ ! $confirm =~ ^[Yy]$ ]]; then
+    echo "Cancelled."
+    exit 1
+fi
+
+echo ""
+echo "Adding all files..."
+git add .
+
+echo ""
+echo "Committing changes..."
+git commit -m "Add Render deployment configuration and documentation"
+
+echo ""
+echo "Pushing to GitHub..."
+git push -u origin master
+
+echo ""
+echo "========================================"
+echo "  ✅ Done!"
+echo "========================================"
+echo ""
+echo "Your code is now on GitHub!"
+echo "Repository: https://github.com/Ayupanchal18/Talkers"
+echo ""
+echo "Next step: Deploy to Render"
+echo "Follow COMPLETE_DEPLOYMENT_STEPS.md"
+echo ""
