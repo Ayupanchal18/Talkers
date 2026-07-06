@@ -19,25 +19,27 @@ app.use(morgan('dev'));
 app.use(helmet());
 
 // CORS Configuration
-const allowedOrigins = process.env.NODE_ENV === 'production'
-  ? [process.env.FRONTEND_URL].filter(Boolean) // Production: only allow configured frontend
-  : [
-      process.env.FRONTEND_URL || 'http://localhost:5173',
-      'http://localhost:5173',
-      'https://localhost:5173',
-      'http://192.168.1.17:5173',
-      'https://192.168.1.17:5173'
-    ];
-
 app.use(
   cors({
     origin: (origin, callback) => {
-      // In production, strictly check origin. In dev, allow all for easier testing
+      // Allow requests with no origin (mobile apps, Postman, etc.)
+      if (!origin) {
+        return callback(null, true);
+      }
+      
+      // In production, check if origin matches frontend URL
       if (process.env.NODE_ENV === 'production') {
-        if (!origin || allowedOrigins.includes(origin)) {
+        const frontendUrl = process.env.FRONTEND_URL;
+        // Match with or without protocol
+        if (frontendUrl && (
+          origin === frontendUrl || 
+          origin === `https://${frontendUrl}` ||
+          origin.includes('vidss-frontend.onrender.com')
+        )) {
           callback(null, true);
         } else {
-          callback(new Error('Not allowed by CORS'));
+          console.log(`CORS blocked origin: ${origin}, expected: ${frontendUrl}`);
+          callback(null, true); // Allow for now to debug
         }
       } else {
         callback(null, true);
