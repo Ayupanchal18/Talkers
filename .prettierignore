@@ -1,0 +1,15 @@
+# Dependency directories
+node_modules/
+dist/
+build/
+.next/
+out/
+package-lock.json
+
+# Environment variables
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
