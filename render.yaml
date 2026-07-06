@@ -49,10 +49,7 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: vidss-backend
-          property: host
+        value: https://vidss-backend.onrender.com
 
 databases:
   # PostgreSQL Database
