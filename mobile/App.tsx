@@ -10,6 +10,10 @@ import HomePage from './src/features/meeting/pages/HomePage';
 import LobbyPage from './src/features/meeting/pages/LobbyPage';
 import RoomPage from './src/features/meeting/pages/RoomPage';
 import { PageLoader } from './src/shared/components/Loading';
+import * as SplashScreen from 'expo-splash-screen';
+
+// Prevent the native splash screen from hiding automatically on startup
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const Stack = createNativeStackNavigator();
 const navigationRef = createNavigationContainerRef();
@@ -53,6 +57,12 @@ export default function App() {
       setPendingRoomCode(null); // Clear the pending state
     }
   }, [accessToken, pendingRoomCode]);
+
+  useEffect(() => {
+    if (!isLoading) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [isLoading]);
 
   // Show standard loading screen during app boot token refresh checking
   if (isLoading && !accessToken && !user) {

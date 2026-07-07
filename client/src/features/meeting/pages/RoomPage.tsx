@@ -12,9 +12,8 @@ import {
   PhoneOff,
   Send,
   X,
-  Maximize2,
-  Minimize2,
   PictureInPicture,
+  Pin,
 } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/store/useAuthStore';
 import { useMeetingSocket } from '../hooks/useMeetingSocket';
@@ -31,10 +30,11 @@ interface Participant {
 interface RemoteVideoProps {
   stream?: MediaStream;
   visible: boolean;
+  isPinned: boolean;
+  onPin: () => void;
 }
 
-function RemoteVideo({ stream, visible }: RemoteVideoProps) {
-  const [fitMode, setFitMode] = useState<'cover' | 'contain'>('contain');
+function RemoteVideo({ stream, visible, isPinned, onPin }: RemoteVideoProps) {
   const ref = useRef<HTMLVideoElement>(null);
   
   useEffect(() => {
@@ -67,27 +67,18 @@ function RemoteVideo({ stream, visible }: RemoteVideoProps) {
         ref={ref}
         autoPlay
         playsInline
-        className={`room-video-frame absolute inset-0 w-full h-full object-${fitMode} transition-opacity duration-300 ${
+        className={`room-video-frame absolute inset-0 w-full h-full object-contain transition-opacity duration-300 ${
           visible ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       />
       {visible && stream && (
         <button
-          onClick={() => setFitMode((prev) => (prev === 'cover' ? 'contain' : 'cover'))}
+          onClick={onPin}
           className="absolute top-3 left-3 z-10 flex items-center gap-1.5 bg-[#0c1220]/75 hover:bg-[#0c1220] text-slate-300 hover:text-white border border-[#1e293b]/50 px-2 py-1.5 rounded-lg text-[10px] font-bold tracking-wide uppercase shadow-md transition-colors"
-          title={fitMode === 'cover' ? 'Fit to Screen' : 'Fill Screen'}
+          title={isPinned ? 'Unpin participant' : 'Pin participant'}
         >
-          {fitMode === 'cover' ? (
-            <>
-              <Minimize2 size={12} />
-              <span>Fit Video</span>
-            </>
-          ) : (
-            <>
-              <Maximize2 size={12} />
-              <span>Fill Screen</span>
-            </>
-          )}
+          <Pin size={12} className={isPinned ? 'rotate-45 text-blue-400' : ''} />
+          <span>{isPinned ? 'Unpin' : 'Pin'}</span>
         </button>
       )}
       {visible && stream && isPiPSupported && (
@@ -139,6 +130,7 @@ export default function RoomPage() {
   const [inputText, setInputText] = useState('');
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [pinnedSocketId, setPinnedSocketId] = useState<string | null>(null);
 
   const localStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
@@ -494,6 +486,99 @@ export default function RoomPage() {
     navigate('/');
   };
 
+  const renderVideoCard = (id: 'local' | string, isThumbnail: boolean = false) => {
+    if (id === 'local') {
+      return (
+        <div
+          key="local"
+          className={`room-video-card relative rounded-2xl bg-[#0c1220] border overflow-hidden flex items-center justify-center transition-all duration-300 ${
+            isThumbnail ? 'w-full h-[160px] min-h-[160px]' : 'w-full h-full min-h-[220px]'
+          } ${
+            micEnabled ? 'room-video-card-speaking border-blue-500/40 shadow-[0_0_15px_rgba(59,130,246,0.15)]' : 'border-[#1e293b]'
+          }`}
+        >
+          <video
+            ref={localVideoRef}
+            autoPlay
+            playsInline
+            muted
+            className={`room-video-frame absolute inset-0 w-full h-full object-contain transition-opacity duration-300 ${
+              videoEnabled && localStream ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            }`}
+          />
+          {(!videoEnabled || !localStream) && (
+            <div className="room-avatar-container">
+              <Avatar name={user?.name || 'You'} />
+            </div>
+          )}
+          {/* Speaking badge */}
+          {micEnabled && (
+            <div className="room-speaking-badge absolute top-3 right-3 flex items-center gap-1.5 bg-[#3b82f6]/10 border border-[#3b82f6]/30 px-2.5 py-1 rounded-md text-[10px] text-blue-400 font-semibold tracking-wide uppercase">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
+              Speaking
+            </div>
+          )}
+          {/* Pin Button */}
+          {localStream && (
+            <button
+              onClick={() => setPinnedSocketId(pinnedSocketId === 'local' ? null : 'local')}
+              className="absolute top-3 left-3 z-10 flex items-center gap-1.5 bg-[#0c1220]/75 hover:bg-[#0c1220] text-slate-300 hover:text-white border border-[#1e293b]/50 px-2 py-1.5 rounded-lg text-[10px] font-bold tracking-wide uppercase shadow-md transition-colors"
+              title={pinnedSocketId === 'local' ? 'Unpin video' : 'Pin video'}
+            >
+              <Pin size={12} className={pinnedSocketId === 'local' ? 'rotate-45 text-blue-400' : ''} />
+              <span>{pinnedSocketId === 'local' ? 'Unpin' : 'Pin'}</span>
+            </button>
+          )}
+          {/* Name badge */}
+          <div className="room-info-bar absolute bottom-3 left-3 flex items-center gap-2 bg-[#0c1220]/75 backdrop-filter backdrop-blur-md px-3 py-1.5 rounded-lg border border-[#1e293b]/50">
+            <span className="text-[11px] text-slate-300 font-semibold">
+              {user?.name} (You)
+            </span>
+            {!micEnabled && <MicOff className="w-3.5 h-3.5 text-red-500" />}
+          </div>
+        </div>
+      );
+    } else {
+      const p = participants.find((part) => part.socketId === id);
+      if (!p) return null;
+      const isPinned = pinnedSocketId === p.socketId;
+      return (
+        <div
+          key={p.socketId}
+          className={`room-video-card relative rounded-2xl bg-[#0c1220] border overflow-hidden flex items-center justify-center transition-all duration-300 ${
+            isThumbnail ? 'w-full h-[160px] min-h-[160px]' : 'w-full h-full min-h-[220px]'
+          } ${
+            p.micEnabled ? 'room-video-card-speaking border-blue-500/40 shadow-[0_0_15px_rgba(59,130,246,0.15)]' : 'border-[#1e293b]'
+          }`}
+        >
+          <RemoteVideo 
+            stream={p.stream} 
+            visible={p.videoEnabled && !!p.stream}
+            isPinned={isPinned}
+            onPin={() => setPinnedSocketId(isPinned ? null : p.socketId)}
+          />
+          {(!p.videoEnabled || !p.stream) && (
+            <div className="room-avatar-container">
+              <Avatar name={p.name} />
+            </div>
+          )}
+          {p.micEnabled && (
+            <div className="room-speaking-badge absolute top-3 right-3 flex items-center gap-1.5 bg-[#3b82f6]/10 border border-[#3b82f6]/30 px-2.5 py-1 rounded-md text-[10px] text-blue-400 font-semibold tracking-wide uppercase">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
+              Speaking
+            </div>
+          )}
+          <div className="room-info-bar absolute bottom-3 left-3 flex items-center gap-2 bg-[#0c1220]/75 backdrop-filter backdrop-blur-md px-3 py-1.5 rounded-lg border border-[#1e293b]/50">
+            <span className="text-[11px] text-slate-300 font-semibold">
+              {p.name}
+            </span>
+            {!p.micEnabled && <MicOff className="w-3.5 h-3.5 text-red-500" />}
+          </div>
+        </div>
+      );
+    }
+  };
+
   return (
     <div className="room-root h-screen w-screen text-slate-100 flex flex-col overflow-hidden">
       {/* Room Header */}
@@ -513,77 +598,29 @@ export default function RoomPage() {
 
       {/* Main Flex Area */}
       <div className="room-main-area flex-grow flex overflow-hidden">
-        {/* Video Grid */}
+        {/* Video Grid / Focus Area */}
         <div className="flex-grow flex flex-col p-3 gap-3 overflow-hidden room-video-grid-wrapper">
-          <div className="room-video-grid flex-grow grid grid-cols-1 md:grid-cols-2 gap-3 items-stretch overflow-auto">
-            {/* Local Video */}
-            <div
-              className={`room-video-card relative rounded-2xl bg-[#0c1220] border overflow-hidden flex items-center justify-center min-h-[220px] transition-all duration-300 ${
-                micEnabled ? 'room-video-card-speaking border-blue-500/40 shadow-[0_0_15px_rgba(59,130,246,0.15)]' : 'border-[#1e293b]'
-              }`}
-            >
-              <video
-                ref={localVideoRef}
-                autoPlay
-                playsInline
-                muted
-                className={`room-video-frame absolute inset-0 w-full h-full object-contain transition-opacity duration-300 ${
-                  videoEnabled && localStream ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                }`}
-              />
-              {(!videoEnabled || !localStream) && (
-                <div className="room-avatar-container">
-                  <Avatar name={user?.name || 'You'} />
-                </div>
-              )}
-              {/* Speaking badge */}
-              {micEnabled && (
-                <div className="room-speaking-badge absolute top-3 right-3 flex items-center gap-1.5 bg-[#3b82f6]/10 border border-[#3b82f6]/30 px-2.5 py-1 rounded-md text-[10px] text-blue-400 font-semibold tracking-wide uppercase">
-                  <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
-                  Speaking
-                </div>
-              )}
-              {/* Name badge */}
-              <div className="room-info-bar absolute bottom-3 left-3 flex items-center gap-2 bg-[#0c1220]/75 backdrop-filter backdrop-blur-md px-3 py-1.5 rounded-lg border border-[#1e293b]/50">
-                <span className="text-[11px] text-slate-300 font-semibold">
-                  {user?.name} (You)
-                </span>
-                {!micEnabled && <MicOff className="w-3.5 h-3.5 text-red-500" />}
+          {pinnedSocketId ? (
+            <div className="flex-grow flex flex-col md:flex-row gap-3 h-full overflow-hidden w-full">
+              {/* Pinned Video */}
+              <div className="flex-[3] h-full relative">
+                {renderVideoCard(pinnedSocketId)}
+              </div>
+              
+              {/* Sidebar thumbnails */}
+              <div className="flex-[1] h-full flex flex-row md:flex-col gap-3 overflow-auto pr-1 room-thumbnails-sidebar min-w-[200px]">
+                {pinnedSocketId !== 'local' && renderVideoCard('local', true)}
+                {participants
+                  .filter((p) => p.socketId !== pinnedSocketId)
+                  .map((p) => renderVideoCard(p.socketId, true))}
               </div>
             </div>
-
-            {/* Remote Participants */}
-            {participants.map((p) => (
-              <div
-                key={p.socketId}
-                className={`room-video-card relative rounded-2xl bg-[#0c1220] border overflow-hidden flex items-center justify-center min-h-[220px] transition-all duration-300 ${
-                  p.micEnabled ? 'room-video-card-speaking border-blue-500/40 shadow-[0_0_15px_rgba(59,130,246,0.15)]' : 'border-[#1e293b]'
-                }`}
-              >
-                <RemoteVideo 
-                  stream={p.stream} 
-                  visible={p.videoEnabled && !!p.stream} 
-                />
-                {(!p.videoEnabled || !p.stream) && (
-                  <div className="room-avatar-container">
-                    <Avatar name={p.name} />
-                  </div>
-                )}
-                {p.micEnabled && (
-                  <div className="room-speaking-badge absolute top-3 right-3 flex items-center gap-1.5 bg-[#3b82f6]/10 border border-[#3b82f6]/30 px-2.5 py-1 rounded-md text-[10px] text-blue-400 font-semibold tracking-wide uppercase">
-                    <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
-                    Speaking
-                  </div>
-                )}
-                <div className="room-info-bar absolute bottom-3 left-3 flex items-center gap-2 bg-[#0c1220]/75 backdrop-filter backdrop-blur-md px-3 py-1.5 rounded-lg border border-[#1e293b]/50">
-                  <span className="text-[11px] text-slate-300 font-semibold">
-                    {p.name}
-                  </span>
-                  {!p.micEnabled && <MicOff className="w-3.5 h-3.5 text-red-500" />}
-                </div>
-              </div>
-            ))}
-          </div>
+          ) : (
+            <div className="room-video-grid flex-grow grid grid-cols-1 md:grid-cols-2 gap-3 items-stretch overflow-auto">
+              {renderVideoCard('local')}
+              {participants.map((p) => renderVideoCard(p.socketId))}
+            </div>
+          )}
 
           {/* Controls Toolbar */}
           <div className="h-20 shrink-0 flex items-center justify-center gap-4 bg-[#0c1220]/80 border border-[#1e293b] rounded-2xl px-6 max-w-xl mx-auto w-full self-center room-controls-toolbar">
