@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { User, Mail, Lock, AlertCircle, Video, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { Spinner } from '@/shared/components/Loading';
@@ -12,13 +12,16 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const { register, isLoading, error, setError } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const from = location.state?.from || '/';
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!name || !email || !password) return;
     try {
       await register(name, email, password);
-      navigate('/');
+      navigate(from, { replace: true });
     } catch {
       // Error is stored in auth store
     }
@@ -162,7 +165,7 @@ export default function RegisterPage() {
 
           <p className="auth-footer-text">
             Already have an account?{' '}
-            <Link to="/login" className="auth-link">
+            <Link to="/login" state={{ from }} className="auth-link">
               Sign in
             </Link>
           </p>

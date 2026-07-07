@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/features/auth/store/useAuthStore';
 import { PageLoader } from './Loading';
 
 export default function ProtectedRoute() {
   const { user, accessToken, refreshSession } = useAuthStore();
   const [isInitializing, setIsInitializing] = useState(!accessToken && !!user);
+  const location = useLocation();
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -22,7 +23,7 @@ export default function ProtectedRoute() {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   return <Outlet />;
