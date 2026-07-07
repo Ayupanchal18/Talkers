@@ -6,11 +6,14 @@ import {
   SafeAreaView,
   Clipboard,
   Platform,
+  StatusBar,
 } from 'react-native';
 import { mediaDevices, RTCView } from 'react-native-webrtc';
 import * as Lucide from 'lucide-react-native';
 import tw from 'twrnc';
 import { Spinner } from '../../../shared/components/Loading';
+import { useAuthStore } from '../../auth/store/useAuthStore';
+import { API_URL } from '../../../shared/constants';
 
 const Video = Lucide.Video as any;
 const VideoOff = Lucide.VideoOff as any;
@@ -30,6 +33,7 @@ interface LobbyPageProps {
 
 export default function LobbyPage({ route, navigation }: LobbyPageProps) {
   const { code } = route.params;
+  const { accessToken } = useAuthStore();
 
   const [micEnabled, setMicEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(true);
@@ -38,7 +42,47 @@ export default function LobbyPage({ route, navigation }: LobbyPageProps) {
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [devices, setDevices] = useState<any[]>([]);
 
+  const [isValidating, setIsValidating] = useState(true);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [roomTitle, setRoomTitle] = useState('Lobby');
+
   const activeStreamRef = useRef<any>(null);
+
+  useEffect(() => {
+    let active = true;
+    const verifyRoom = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/meetings/join`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ code }),
+        });
+
+        if (!active) return;
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.message || 'Failed to join meeting');
+        }
+
+        const data = await response.json();
+        setRoomTitle(data.title);
+      } catch (err: any) {
+        if (!active) return;
+        setValidationError(err.message);
+      } finally {
+        if (active) setIsValidating(false);
+      }
+    };
+
+    verifyRoom();
+    return () => {
+      active = false;
+    };
+  }, [code, accessToken]);
 
   useEffect(() => {
     const getDevices = async () => {
@@ -72,8 +116,15 @@ export default function LobbyPage({ route, navigation }: LobbyPageProps) {
         const stream = await mediaDevices.getUserMedia({
           video: videoEnabled ? {
             facingMode: 'user', // front camera
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            frameRate: { ideal: 30 },
           } : false,
-          audio: micEnabled,
+          audio: micEnabled ? ({
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          } as any) : false,
         });
 
         if (!active) {
@@ -106,7 +157,7 @@ export default function LobbyPage({ route, navigation }: LobbyPageProps) {
 
   const handleCopyLink = () => {
     // Replicating web URL representation
-    Clipboard.setString(`https://vidss.onrender.com/room/${code}`);
+    Clipboard.setString(`https://vidss-frontend.onrender.com/room/${code}`);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
   };
@@ -123,8 +174,36 @@ export default function LobbyPage({ route, navigation }: LobbyPageProps) {
   const camerasCount = devices.filter((d) => d.kind === 'videoinput').length || (videoEnabled ? 1 : 0);
   const micsCount = devices.filter((d) => d.kind === 'audioinput').length || (micEnabled ? 1 : 0);
 
+  if (isValidating) {
+    return (
+      <SafeAreaView style={[tw`flex-1 bg-[#050811] justify-center items-center`, Platform.OS === 'android' ? { paddingTop: StatusBar.currentHeight || 0 } : null]}>
+        <Spinner size="large" />
+        <Text style={tw`text-slate-400 text-xs font-semibold mt-4`}>Verifying meeting room...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (validationError) {
+    return (
+      <SafeAreaView style={[tw`flex-1 bg-[#050811] justify-center items-center px-6`, Platform.OS === 'android' ? { paddingTop: StatusBar.currentHeight || 0 } : null]}>
+        <View style={tw`w-14 h-14 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-4`}>
+          <AlertTriangle size={24} color="#ef4444" />
+        </View>
+        <Text style={tw`text-lg font-bold text-white text-center mb-2`}>Meeting Unavailable</Text>
+        <Text style={tw`text-sm text-slate-450 text-center mb-6 leading-5`}>{validationError}</Text>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Home')}
+          style={tw`bg-blue-600 px-6 py-3 rounded-xl`}
+          activeOpacity={0.8}
+        >
+          <Text style={tw`text-white font-bold text-sm`}>Go Back Home</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={tw`flex-1 bg-[#050811] justify-between py-6`}>
+    <SafeAreaView style={[tw`flex-1 bg-[#050811] justify-between py-6`, Platform.OS === 'android' ? { paddingTop: StatusBar.currentHeight || 0 } : null]}>
       {/* Header */}
       <View style={tw`px-6 flex-row items-center gap-3`}>
         <TouchableOpacity 
@@ -135,7 +214,7 @@ export default function LobbyPage({ route, navigation }: LobbyPageProps) {
           <ArrowRight size={16} color="#94a3b8" style={{ transform: [{ rotate: '180deg' }] }} />
         </TouchableOpacity>
         <View style={tw`gap-0.5`}>
-          <Text style={tw`text-lg font-bold text-white`}>Lobby</Text>
+          <Text style={tw`text-lg font-bold text-white`}>{roomTitle}</Text>
           <Text style={tw`text-xs text-slate-400 font-semibold`}>Verify settings before joining</Text>
         </View>
       </View>

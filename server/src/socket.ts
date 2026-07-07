@@ -57,8 +57,24 @@ export const initSocket = (server: HTTPServer): Server => {
             where: { code: roomCode },
           });
 
-          if (!meeting || !meeting.isActive) {
-            socket.emit(SOCKET_EVENTS.ERROR, { message: 'Meeting room is inactive or not found' });
+          if (!meeting) {
+            socket.emit(SOCKET_EVENTS.ERROR, { message: 'Meeting room not found' });
+            return;
+          }
+
+          // Check if meeting is expired (active for 24 hours)
+          const MEETING_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+          const isExpired = Date.now() - new Date(meeting.createdAt).getTime() > MEETING_EXPIRY_MS;
+
+          if (isExpired || !meeting.isActive) {
+            if (meeting.isActive) {
+              // Asynchronously deactivate in DB for future queries
+              prisma.meeting.update({
+                where: { code: roomCode },
+                data: { isActive: false },
+              }).catch((err) => console.error('[Socket] Failed to auto-deactivate expired room:', err));
+            }
+            socket.emit(SOCKET_EVENTS.ERROR, { message: 'Meeting room has expired or is inactive' });
             return;
           }
 

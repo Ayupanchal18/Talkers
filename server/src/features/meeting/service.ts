@@ -56,8 +56,23 @@ export async function joinMeeting(code: string): Promise<MeetingResponse> {
     where: { code },
   });
 
-  if (!meeting || !meeting.isActive) {
-    throw new AppError('Meeting room not found or is inactive', 404);
+  if (!meeting) {
+    throw new AppError('Meeting room not found', 404);
+  }
+
+  // Check if meeting is expired (active for 24 hours)
+  const MEETING_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+  const isExpired = Date.now() - new Date(meeting.createdAt).getTime() > MEETING_EXPIRY_MS;
+
+  if (isExpired || !meeting.isActive) {
+    if (meeting.isActive) {
+      // Asynchronously deactivate in DB for future queries
+      prisma.meeting.update({
+        where: { code },
+        data: { isActive: false },
+      }).catch((err) => console.error('[MeetingService] Failed to auto-deactivate expired room:', err));
+    }
+    throw new AppError('Meeting room has expired or is inactive', 400);
   }
 
   return meeting;

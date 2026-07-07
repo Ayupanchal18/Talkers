@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
+    "scheme": "vidss",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.vidss.app",
@@ -24,6 +25,28 @@
         "CAMERA",
         "RECORD_AUDIO",
         "MODIFY_AUDIO_SETTINGS"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "vidss-frontend.onrender.com",
+              "pathPrefix": "/lobby"
+            },
+            {
+              "scheme": "https",
+              "host": "vidss-frontend.onrender.com",
+              "pathPrefix": "/room"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
       ]
     },
     "web": {

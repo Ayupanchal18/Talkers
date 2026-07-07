@@ -54,10 +54,17 @@ export default function LobbyPage() {
         return;
       }
 
-      try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: videoEnabled,
-          audio: micEnabled,
+          video: videoEnabled ? {
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            frameRate: { ideal: 30 },
+          } : false,
+          audio: micEnabled ? {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          } : false,
         });
 
         if (!active) {

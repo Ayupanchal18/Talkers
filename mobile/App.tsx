@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { NavigationContainer } from '@react-navigation/native';
+import { Linking } from 'react-native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuthStore } from './src/features/auth/store/useAuthStore';
 import LoginPage from './src/features/auth/pages/LoginPage';
@@ -11,14 +12,47 @@ import RoomPage from './src/features/meeting/pages/RoomPage';
 import { PageLoader } from './src/shared/components/Loading';
 
 const Stack = createNativeStackNavigator();
+const navigationRef = createNavigationContainerRef();
 
 export default function App() {
   const { accessToken, user, loadStoredSession, isLoading } = useAuthStore();
+  const [pendingRoomCode, setPendingRoomCode] = useState<string | null>(null);
 
   useEffect(() => {
     // Attempt to load any stored session tokens from SecureStore on startup
     loadStoredSession();
+
+    const parseDeepLink = (url: string | null) => {
+      if (!url) return;
+      console.log('[DeepLink] Received URL:', url);
+      // Matches lobby/room codes: e.g. lobby/abc-defg-hij or room/abc-defg-hij
+      const match = url.match(/(?:lobby|room)\/([a-z0-9-]+)/i);
+      if (match && match[1]) {
+        console.log('[DeepLink] Extracted room code:', match[1]);
+        setPendingRoomCode(match[1]);
+      }
+    };
+
+    // Check if the app was opened by a deep link initially
+    Linking.getInitialURL().then((url) => parseDeepLink(url));
+
+    // Listen for incoming links while the app is active
+    const handleOpenURL = (event: { url: string }) => parseDeepLink(event.url);
+    const subscription = Linking.addEventListener('url', handleOpenURL);
+
+    return () => {
+      subscription.remove();
+    };
   }, []);
+
+  useEffect(() => {
+    // If user is authenticated, we have a pending room code, and navigation container is ready: redirect!
+    if (accessToken && pendingRoomCode && navigationRef.isReady()) {
+      console.log('[DeepLink] Performing navigation to Lobby with code:', pendingRoomCode);
+      (navigationRef as any).navigate('Lobby', { code: pendingRoomCode });
+      setPendingRoomCode(null); // Clear the pending state
+    }
+  }, [accessToken, pendingRoomCode]);
 
   // Show standard loading screen during app boot token refresh checking
   if (isLoading && !accessToken && !user) {
@@ -26,7 +60,7 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <StatusBar style="light" />
       
       <Stack.Navigator

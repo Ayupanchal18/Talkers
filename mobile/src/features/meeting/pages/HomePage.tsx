@@ -7,6 +7,7 @@ import {
   ScrollView,
   SafeAreaView,
   Platform,
+  StatusBar,
 } from 'react-native';
 import * as Lucide from 'lucide-react-native';
 import tw from 'twrnc';
@@ -117,7 +118,7 @@ export default function HomePage({ navigation }: HomePageProps) {
   ];
 
   return (
-    <SafeAreaView style={tw`flex-1 bg-[#050811]`}>
+    <SafeAreaView style={[tw`flex-1 bg-[#050811]`, Platform.OS === 'android' ? { paddingTop: StatusBar.currentHeight || 0 } : null]}>
       {/* Header with App Title & Logout */}
       <View style={tw`flex-row justify-between items-center px-6 py-4 border-b border-slate-900 bg-[#0c1220]/50`}>
         <View style={tw`flex-row items-center gap-2`}>

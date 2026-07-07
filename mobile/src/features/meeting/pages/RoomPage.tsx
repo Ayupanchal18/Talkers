@@ -10,6 +10,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  StatusBar,
+  Share,
 } from 'react-native';
 import { mediaDevices, RTCView, RTCPeerConnection, RTCSessionDescription, RTCIceCandidate } from 'react-native-webrtc';
 import * as Lucide from 'lucide-react-native';
@@ -29,6 +31,7 @@ const X = Lucide.X as any;
 const Camera = Lucide.Camera as any;
 const Maximize2 = Lucide.Maximize2 as any;
 const Minimize2 = Lucide.Minimize2 as any;
+const Share2 = Lucide.Share2 as any;
 
 interface Participant {
   socketId: string;
@@ -60,6 +63,17 @@ export default function RoomPage({ route, navigation }: any) {
   const [inputText, setInputText] = useState('');
   const [activeModal, setActiveModal] = useState<'chat' | 'participants' | null>(null);
   const [remoteFit, setRemoteFit] = useState<'cover' | 'contain'>('contain');
+
+  const handleShareInvite = async () => {
+    try {
+      await Share.share({
+        message: `Join my video call on Vidss!\nRoom Code: ${code}\nLink: https://vidss-frontend.onrender.com/room/${code}`,
+        title: 'Vidss Call Invitation',
+      });
+    } catch (error: any) {
+      console.warn('[Share] Error launching share sheet:', error.message);
+    }
+  };
 
   const localStreamRef = useRef<any>(null);
   const pcsRef = useRef<Map<string, any>>(new Map());
@@ -213,8 +227,15 @@ export default function RoomPage({ route, navigation }: any) {
         const stream = await mediaDevices.getUserMedia({
           video: {
             facingMode: 'user',
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            frameRate: { ideal: 30 },
           },
-          audio: true,
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          } as any,
         });
         if (!active) {
           stream.getTracks().forEach((t: any) => t.stop());
@@ -263,8 +284,12 @@ export default function RoomPage({ route, navigation }: any) {
   const handleSwitchCamera = () => {
     if (localStreamRef.current) {
       localStreamRef.current.getVideoTracks().forEach((track: any) => {
-        // Native camera switcher inside react-native-webrtc
-        track._switchCamera();
+        // Support both modern public and legacy private switchCamera methods in react-native-webrtc
+        if (typeof track.switchCamera === 'function') {
+          track.switchCamera();
+        } else if (typeof track._switchCamera === 'function') {
+          track._switchCamera();
+        }
       });
     }
   };
@@ -284,7 +309,7 @@ export default function RoomPage({ route, navigation }: any) {
   const isSingle = totalCards === 1;
 
   return (
-    <SafeAreaView style={tw`flex-1 bg-[#050811] text-slate-100 flex-col`}>
+    <SafeAreaView style={[tw`flex-1 bg-[#050811] text-slate-100 flex-col`, Platform.OS === 'android' ? { paddingTop: StatusBar.currentHeight || 0 } : null]}>
       {/* Header */}
       <View style={tw`h-14 flex-row items-center justify-between px-5 border-b border-[#1e293b] bg-[#0c1220]`}>
         <View style={tw`flex-row items-center gap-2`}>
@@ -294,11 +319,22 @@ export default function RoomPage({ route, navigation }: any) {
           <Text style={tw`text-xs font-mono text-slate-400 font-bold`}>{code}</Text>
         </View>
 
-        <View style={tw`flex-row items-center gap-2.5 bg-slate-900 border border-slate-800 px-3 py-1 rounded-lg`}>
-          <Users size={12} color="#94a3b8" />
-          <Text style={tw`text-xs text-slate-300 font-semibold`}>
-            {participants.length + 1}
-          </Text>
+        <View style={tw`flex-row items-center gap-2`}>
+          <TouchableOpacity
+            onPress={handleShareInvite}
+            style={tw`flex-row items-center gap-1.5 bg-blue-600 border border-blue-500 px-2.5 py-1.5 rounded-lg`}
+            activeOpacity={0.7}
+          >
+            <Share2 size={11} color="white" />
+            <Text style={tw`text-[10px] text-white font-bold uppercase`}>Invite</Text>
+          </TouchableOpacity>
+
+          <View style={tw`flex-row items-center gap-2.5 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg`}>
+            <Users size={12} color="#94a3b8" />
+            <Text style={tw`text-xs text-slate-300 font-semibold`}>
+              {participants.length + 1}
+            </Text>
+          </View>
         </View>
       </View>
 

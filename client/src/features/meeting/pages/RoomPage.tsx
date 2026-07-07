@@ -14,6 +14,7 @@ import {
   X,
   Maximize2,
   Minimize2,
+  PictureInPicture,
 } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/store/useAuthStore';
 import { useMeetingSocket } from '../hooks/useMeetingSocket';
@@ -45,6 +46,21 @@ function RemoteVideo({ stream, visible }: RemoteVideoProps) {
     }
   }, [stream]);
 
+  const isPiPSupported = typeof document !== 'undefined' && document.pictureInPictureEnabled;
+
+  const handleTogglePiP = async () => {
+    if (!ref.current) return;
+    try {
+      if (document.pictureInPictureElement === ref.current) {
+        await document.exitPictureInPicture();
+      } else {
+        await ref.current.requestPictureInPicture();
+      }
+    } catch (err) {
+      console.error('[PiP] Error toggling Picture-in-Picture:', err);
+    }
+  };
+
   return (
     <div className="absolute inset-0 w-full h-full">
       <video
@@ -72,6 +88,16 @@ function RemoteVideo({ stream, visible }: RemoteVideoProps) {
               <span>Fill Screen</span>
             </>
           )}
+        </button>
+      )}
+      {visible && stream && isPiPSupported && (
+        <button
+          onClick={handleTogglePiP}
+          className="absolute top-3 right-3 z-10 flex items-center gap-1.5 bg-[#0c1220]/75 hover:bg-[#0c1220] text-slate-300 hover:text-white border border-[#1e293b]/50 px-2 py-1.5 rounded-lg text-[10px] font-bold tracking-wide uppercase shadow-md transition-colors"
+          title="Picture in Picture"
+        >
+          <PictureInPicture size={12} />
+          <span>Floating View</span>
         </button>
       )}
     </div>
@@ -267,8 +293,16 @@ export default function RoomPage() {
     const initLocalMedia = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: initialStates?.initialVideo !== false,
-          audio: initialStates?.initialMic !== false,
+          video: initialStates?.initialVideo !== false ? {
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            frameRate: { ideal: 30 },
+          } : false,
+          audio: initialStates?.initialMic !== false ? {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          } : false,
         });
         if (!active) {
           stream.getTracks().forEach((t) => t.stop());
