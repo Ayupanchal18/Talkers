@@ -57,6 +57,9 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
 
       localStorage.setItem('user', JSON.stringify(data.data.user));
+      if (data.data.refreshToken) {
+        localStorage.setItem('refreshToken', data.data.refreshToken);
+      }
       set({ user: data.data.user, accessToken: data.data.accessToken, isLoading: false });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An error occurred';
@@ -80,6 +83,9 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
 
       localStorage.setItem('user', JSON.stringify(data.data.user));
+      if (data.data.refreshToken) {
+        localStorage.setItem('refreshToken', data.data.refreshToken);
+      }
       set({ user: data.data.user, accessToken: data.data.accessToken, isLoading: false });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An error occurred';
@@ -98,26 +104,40 @@ export const useAuthStore = create<AuthState>((set) => ({
       console.error('Failed to call logout endpoint:', error);
     } finally {
       localStorage.removeItem('user');
+      localStorage.removeItem('refreshToken');
       set({ user: null, accessToken: null });
     }
   },
 
   refreshSession: async () => {
     try {
+      const storedRefreshToken = localStorage.getItem('refreshToken');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (storedRefreshToken) {
+        headers['x-refresh-token'] = storedRefreshToken;
+      }
+
       const response = await fetch(`${API_URL}/api/auth/refresh`, {
         method: 'POST',
+        headers,
         credentials: 'include', // CRITICAL: sends the HttpOnly refreshToken cookie
       });
       const data = await response.json();
       if (response.ok && data.data?.accessToken) {
+        if (data.data.refreshToken) {
+          localStorage.setItem('refreshToken', data.data.refreshToken);
+        }
         set({ accessToken: data.data.accessToken });
         return data.data.accessToken;
       }
       // If refresh fails, clear user state
       localStorage.removeItem('user');
+      localStorage.removeItem('refreshToken');
       set({ user: null, accessToken: null });
+      return null;
     } catch {
       localStorage.removeItem('user');
+      localStorage.removeItem('refreshToken');
       set({ user: null, accessToken: null });
       return null;
     }

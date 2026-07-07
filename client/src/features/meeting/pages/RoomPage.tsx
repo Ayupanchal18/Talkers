@@ -225,6 +225,8 @@ export default function RoomPage() {
       onUserLeft: (leftMember) => {
         const pc = pcsRef.current.get(leftMember.socketId);
         if (pc) {
+          pc.onicecandidate = null;
+          pc.ontrack = null;
           pc.close();
           pcsRef.current.delete(leftMember.socketId);
         }
@@ -327,7 +329,11 @@ export default function RoomPage() {
 
     return () => {
       active = false;
-      currentPcs.forEach((pc) => pc.close());
+      currentPcs.forEach((pc) => {
+        pc.onicecandidate = null;
+        pc.ontrack = null;
+        pc.close();
+      });
       currentPcs.clear();
       const s = currentLocalStreamRef.current;
       if (s) s.getTracks().forEach((t) => t.stop());
@@ -478,7 +484,11 @@ export default function RoomPage() {
       screenStreamRef.current = null;
     }
     // 4. Terminate and clear all RTCPeerConnections
-    pcsRef.current.forEach((pc) => pc.close());
+    pcsRef.current.forEach((pc) => {
+      pc.onicecandidate = null;
+      pc.ontrack = null;
+      pc.close();
+    });
     pcsRef.current.clear();
     // 5. Finally transition back to main route
     navigate('/');

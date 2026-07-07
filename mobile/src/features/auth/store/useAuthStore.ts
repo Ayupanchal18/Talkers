@@ -30,7 +30,7 @@ const SECURE_USER_KEY = 'vidss_user_profile';
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   accessToken: null,
-  isLoading: false,
+  isLoading: true, // Default to true to prevent login screen flashing during bootstrapping
   error: null,
 
   setAccessToken: (token) => set({ accessToken: token }),
@@ -38,6 +38,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setError: (error) => set({ error }),
 
   loadStoredSession: async () => {
+    set({ isLoading: true });
     try {
       const storedUser = await SecureStore.getItemAsync(SECURE_USER_KEY);
       if (storedUser) {
@@ -47,6 +48,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await get().refreshSession();
     } catch (e) {
       console.warn('[AuthStore] Failed to load stored session:', e);
+    } finally {
+      set({ isLoading: false });
     }
   },
 
