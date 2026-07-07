@@ -210,7 +210,7 @@ export default function LobbyPage() {
                 {micEnabled ? <Mic className="w-6 h-6" /> : <MicOff className="w-6 h-6" />}
               </button>
               <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">
-                {micEnabled ? 'Mute' : 'Unmuted'}
+                {micEnabled ? 'Mute' : 'Unmute'}
               </span>
             </div>
 

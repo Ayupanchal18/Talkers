@@ -133,7 +133,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const refreshToken = await SecureStore.getItemAsync(SECURE_REFRESH_TOKEN_KEY);
       if (!refreshToken) {
-        throw new Error('No refresh token available');
+        // No token stored — user is not logged in, nothing to clear
+        set({ user: null, accessToken: null });
+        return null;
       }
 
       const response = await fetch(`${API_URL}/api/auth/refresh`, {
@@ -155,17 +157,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
         return nextAccessToken;
       }
-      
-      // If refresh fails, clear session
-      await SecureStore.deleteItemAsync(SECURE_USER_KEY);
-      await SecureStore.deleteItemAsync(SECURE_REFRESH_TOKEN_KEY);
-      set({ user: null, accessToken: null });
+
+      // Server explicitly rejected the token (4xx) — clear session
+      if (response.status === 401 || response.status === 403) {
+        await SecureStore.deleteItemAsync(SECURE_USER_KEY);
+        await SecureStore.deleteItemAsync(SECURE_REFRESH_TOKEN_KEY);
+        set({ user: null, accessToken: null });
+      }
       return null;
     } catch (err) {
-      console.warn('[AuthStore] Session refresh failed:', err);
-      await SecureStore.deleteItemAsync(SECURE_USER_KEY);
-      await SecureStore.deleteItemAsync(SECURE_REFRESH_TOKEN_KEY);
-      set({ user: null, accessToken: null });
+      // Network error (no connection, timeout, server down) — do NOT clear session.
+      // The user's stored credentials are still valid; they are just temporarily offline.
+      console.warn('[AuthStore] Session refresh failed (network error, keeping session):', err);
       return null;
     }
   },

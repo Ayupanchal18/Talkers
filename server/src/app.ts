@@ -22,26 +22,28 @@ app.use(helmet());
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, Postman, etc.)
+      // Allow requests with no origin (mobile apps, Postman, curl, etc.)
       if (!origin) {
         return callback(null, true);
       }
-      
-      // In production, check if origin matches frontend URL
+
+      // In production, only allow requests from the configured frontend URL
       if (process.env.NODE_ENV === 'production') {
         const frontendUrl = process.env.FRONTEND_URL;
-        // Match with or without protocol
-        if (frontendUrl && (
-          origin === frontendUrl || 
-          origin === `https://${frontendUrl}` ||
-          origin.includes('vidss-frontend.onrender.com')
-        )) {
+        const allowed =
+          frontendUrl &&
+          (origin === frontendUrl ||
+            origin === `https://${frontendUrl}` ||
+            origin.includes('vidss-frontend.onrender.com'));
+
+        if (allowed) {
           callback(null, true);
         } else {
-          console.log(`CORS blocked origin: ${origin}, expected: ${frontendUrl}`);
-          callback(null, true); // Allow for now to debug
+          console.warn(`[CORS] Blocked origin: ${origin}`);
+          callback(new Error(`CORS: Origin ${origin} is not allowed`));
         }
       } else {
+        // Development: allow everything
         callback(null, true);
       }
     },

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/store/useAuthStore';
 import { useMeetingSocket } from '../hooks/useMeetingSocket';
+import { MEETING_CONFIG } from '@/shared/constants';
 
 interface Participant {
   socketId: string;
@@ -136,6 +137,7 @@ export default function RoomPage() {
   const screenStreamRef = useRef<MediaStream | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const pcsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const iceCandidateQueue = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
 
   const createPeerConnection = (remoteSocketId: string) => {
     if (pcsRef.current.has(remoteSocketId)) {
@@ -143,10 +145,7 @@ export default function RoomPage() {
     }
 
     const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-      ],
+      iceServers: [...MEETING_CONFIG.ICE_SERVERS],
     });
 
     pcsRef.current.set(remoteSocketId, pc);
@@ -187,16 +186,30 @@ export default function RoomPage() {
         setParticipants(list.map((p) => ({ ...p, micEnabled: true, videoEnabled: true })));
       },
       onUserJoined: async (newMember) => {
-        setParticipants((prev) => [
-          ...prev,
-          {
-            socketId: newMember.socketId,
-            userId: newMember.userId,
-            name: newMember.name,
-            micEnabled: true,
-            videoEnabled: true,
-          },
-        ]);
+        // Atomically remove any stale card for this userId and add the fresh one
+        setParticipants((prev) => {
+          const stale = prev.find((p) => p.userId === newMember.userId);
+          if (stale) {
+            const pc = pcsRef.current.get(stale.socketId);
+            if (pc) {
+              pc.onicecandidate = null;
+              pc.ontrack = null;
+              pc.close();
+              pcsRef.current.delete(stale.socketId);
+            }
+          }
+          const filtered = prev.filter((p) => p.userId !== newMember.userId);
+          return [
+            ...filtered,
+            {
+              socketId: newMember.socketId,
+              userId: newMember.userId,
+              name: newMember.name,
+              micEnabled: true,
+              videoEnabled: true,
+            },
+          ];
+        });
         setMessages((prev) => [
           ...prev,
           {
@@ -241,6 +254,12 @@ export default function RoomPage() {
         try {
           const pc = createPeerConnection(from);
           await pc.setRemoteDescription(new RTCSessionDescription(offer));
+          // Flush any ICE candidates that arrived before the remote description
+          const queued = iceCandidateQueue.current.get(from) || [];
+          for (const c of queued) {
+            await pc.addIceCandidate(new RTCIceCandidate(c));
+          }
+          iceCandidateQueue.current.delete(from);
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           sendAnswer(from, answer);
@@ -251,7 +270,15 @@ export default function RoomPage() {
       onSignalAnswer: async ({ from, answer }) => {
         try {
           const pc = pcsRef.current.get(from);
-          if (pc) await pc.setRemoteDescription(new RTCSessionDescription(answer));
+          if (pc) {
+            await pc.setRemoteDescription(new RTCSessionDescription(answer));
+            // Flush any ICE candidates that arrived before the remote description
+            const queued = iceCandidateQueue.current.get(from) || [];
+            for (const c of queued) {
+              await pc.addIceCandidate(new RTCIceCandidate(c));
+            }
+            iceCandidateQueue.current.delete(from);
+          }
         } catch (err) {
           console.error('[WebRTC] Answer error:', err);
         }
@@ -259,7 +286,16 @@ export default function RoomPage() {
       onSignalIce: async ({ from, candidate }) => {
         try {
           const pc = pcsRef.current.get(from);
-          if (pc) await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          if (!pc) return;
+          if (pc.remoteDescription) {
+            // Remote description is set — add immediately
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } else {
+            // Queue candidate until remote description is ready
+            const q = iceCandidateQueue.current.get(from) || [];
+            q.push(candidate);
+            iceCandidateQueue.current.set(from, q);
+          }
         } catch (err) {
           console.error('[WebRTC] ICE error:', err);
         }

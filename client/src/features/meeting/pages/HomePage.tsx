@@ -4,8 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/features/auth/store/useAuthStore';
 import { Video, ArrowRight, AlertCircle, Users, Monitor, Link2, Hash } from 'lucide-react';
 import { Spinner } from '@/shared/components/Loading';
-
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:5000';
+import { API_URL } from '@/shared/constants';
 
 function getGreeting() {
   const h = new Date().getHours();
