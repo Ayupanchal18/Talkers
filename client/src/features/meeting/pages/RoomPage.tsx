@@ -26,19 +26,30 @@ interface Participant {
 }
 
 interface RemoteVideoProps {
-  stream: MediaStream;
+  stream?: MediaStream;
+  visible: boolean;
 }
 
-function RemoteVideo({ stream }: RemoteVideoProps) {
+function RemoteVideo({ stream, visible }: RemoteVideoProps) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     if (ref.current && stream) {
       ref.current.srcObject = stream;
+      ref.current.play().catch((err) => {
+        console.warn('[RemoteVideo] Programmatic play failed:', err);
+      });
     }
   }, [stream]);
 
   return (
-    <video ref={ref} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
+    <video
+      ref={ref}
+      autoPlay
+      playsInline
+      className={`room-video-frame absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+        visible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+      }`}
+    />
   );
 }
 
@@ -240,7 +251,12 @@ export default function RoomPage() {
         }
         setLocalStream(stream);
         localStreamRef.current = stream;
-        if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+          localVideoRef.current.play().catch((err) => {
+            console.warn('[Room] Direct local video play failed:', err);
+          });
+        }
         stream.getVideoTracks().forEach((t) => (t.enabled = videoEnabled));
         stream.getAudioTracks().forEach((t) => (t.enabled = micEnabled));
       } catch (err) {
@@ -264,10 +280,38 @@ export default function RoomPage() {
 
   // Set the local video element's srcObject when the video element mounts or the stream is initialized
   useEffect(() => {
-    if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
+    if (localVideoRef.current) {
+      const activeStream = screenSharing ? screenStreamRef.current : localStream;
+      if (activeStream) {
+        localVideoRef.current.srcObject = activeStream;
+        localVideoRef.current.play().catch((err) => {
+          console.warn('[Room] Local video play failed:', err);
+        });
+      }
     }
-  }, [localStream, videoEnabled]);
+  }, [localStream, videoEnabled, screenSharing]);
+
+  // Visibility change handler for resuming frozen videos on iOS Safari
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const videos = document.querySelectorAll('video');
+        videos.forEach((video) => {
+          video.play().catch((err) => {
+            console.warn('[Room] Failed to resume video playback on visibility change:', err);
+          });
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
+    };
+  }, []);
 
   const handleSendMessage = (e: FormEvent) => {
     e.preventDefault();
@@ -307,6 +351,9 @@ export default function RoomPage() {
     });
     if (localVideoRef.current && localStreamRef.current) {
       localVideoRef.current.srcObject = localStreamRef.current;
+      localVideoRef.current.play().catch((err) => {
+        console.warn('[Room] Screen share restore play failed:', err);
+      });
     }
   };
 
@@ -321,7 +368,12 @@ export default function RoomPage() {
           const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
           if (sender && screenTrack) sender.replaceTrack(screenTrack);
         });
-        if (localVideoRef.current) localVideoRef.current.srcObject = screenStream;
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = screenStream;
+          localVideoRef.current.play().catch((err) => {
+            console.warn('[Room] Screen share start play failed:', err);
+          });
+        }
         screenTrack.onended = () => stopScreenShare();
       } catch (err) {
         console.error('[Room] Screen share error:', err);
@@ -377,15 +429,16 @@ export default function RoomPage() {
                 micEnabled ? 'room-video-card-speaking border-blue-500/40 shadow-[0_0_15px_rgba(59,130,246,0.15)]' : 'border-[#1e293b]'
               }`}
             >
-              {videoEnabled && localStream ? (
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="room-video-frame absolute inset-0 w-full h-full object-cover"
-                />
-              ) : (
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className={`room-video-frame absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+                  videoEnabled && localStream ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                }`}
+              />
+              {(!videoEnabled || !localStream) && (
                 <div className="room-avatar-container">
                   <Avatar name={user?.name || 'You'} />
                 </div>
@@ -414,9 +467,11 @@ export default function RoomPage() {
                   p.micEnabled ? 'room-video-card-speaking border-blue-500/40 shadow-[0_0_15px_rgba(59,130,246,0.15)]' : 'border-[#1e293b]'
                 }`}
               >
-                {p.videoEnabled && p.stream ? (
-                  <RemoteVideo stream={p.stream} />
-                ) : (
+                <RemoteVideo 
+                  stream={p.stream} 
+                  visible={p.videoEnabled && !!p.stream} 
+                />
+                {(!p.videoEnabled || !p.stream) && (
                   <div className="room-avatar-container">
                     <Avatar name={p.name} />
                   </div>

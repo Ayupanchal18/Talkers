@@ -91,8 +91,29 @@ export default function LobbyPage() {
   useEffect(() => {
     if (videoRef.current && localStream) {
       videoRef.current.srcObject = localStream;
+      videoRef.current.play().catch((err) => {
+        console.warn('[Lobby] Programmatic play failed:', err);
+      });
     }
   }, [localStream, videoEnabled]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && videoRef.current && localStream && videoEnabled && !permissionError) {
+        videoRef.current.play().catch((err) => {
+          console.warn('[Lobby] Failed to resume preview on visibility change:', err);
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
+    };
+  }, [localStream, videoEnabled, permissionError]);
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(`${window.location.origin}/room/${code}`);
@@ -117,15 +138,17 @@ export default function LobbyPage() {
         <div className="md:col-span-3 space-y-4">
           {/* Preview Box */}
           <div className="lobby-preview-box relative aspect-video w-full rounded-2xl bg-[#0c1220] border border-[#1e293b] overflow-hidden flex items-center justify-center">
-            {videoEnabled && localStream && !permissionError ? (
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-            ) : permissionError ? (
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+                videoEnabled && localStream && !permissionError ? 'opacity-100' : 'opacity-0 pointer-events-none'
+              }`}
+            />
+
+            {permissionError ? (
               <div className="text-center space-y-3 p-8">
                 <div className="w-14 h-14 mx-auto rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
                   <AlertTriangle className="w-7 h-7 text-amber-400" />
@@ -133,14 +156,14 @@ export default function LobbyPage() {
                 <p className="text-sm font-semibold text-amber-300">Camera access blocked</p>
                 <p className="text-xs text-slate-500 max-w-xs leading-relaxed">{permissionError}</p>
               </div>
-            ) : (
+            ) : (!videoEnabled || !localStream) ? (
               <div className="text-center space-y-3">
                 <div className="w-14 h-14 mx-auto rounded-full bg-slate-800/60 border border-[#1e293b] flex items-center justify-center">
                   <VideoOff className="w-7 h-7 text-slate-600" />
                 </div>
                 <p className="text-sm text-slate-500 font-medium">Camera is off</p>
               </div>
-            )}
+            ) : null}
 
             {/* Mic badge */}
             <div className="absolute bottom-3 left-3">
