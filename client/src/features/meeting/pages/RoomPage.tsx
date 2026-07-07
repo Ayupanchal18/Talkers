@@ -184,7 +184,7 @@ export default function RoomPage() {
     return pc;
   };
 
-  const { sendMessage, toggleAudio, toggleVideo, sendOffer, sendAnswer, sendIceCandidate } =
+  const { socket, sendMessage, toggleAudio, toggleVideo, sendOffer, sendAnswer, sendIceCandidate } =
     useMeetingSocket({
       roomCode: code || '',
       isMediaReady: !!localStream,
@@ -460,6 +460,30 @@ export default function RoomPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [micEnabled, videoEnabled, sidebarOpen, sidebarTab]);
 
+  const handleHangUp = () => {
+    // 1. Explicitly disconnect socket from the signaling room
+    if (socket) {
+      socket.emit('room:leave');
+      socket.disconnect();
+    }
+    // 2. Shut down camera and audio tracks
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => track.stop());
+      localStreamRef.current = null;
+    }
+    setLocalStream(null);
+    // 3. Clear screen share tracks
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((track) => track.stop());
+      screenStreamRef.current = null;
+    }
+    // 4. Terminate and clear all RTCPeerConnections
+    pcsRef.current.forEach((pc) => pc.close());
+    pcsRef.current.clear();
+    // 5. Finally transition back to main route
+    navigate('/');
+  };
+
   return (
     <div className="room-root h-screen w-screen text-slate-100 flex flex-col overflow-hidden">
       {/* Room Header */}
@@ -630,7 +654,7 @@ export default function RoomPage() {
 
             {/* Leave */}
             <button
-              onClick={() => navigate('/')}
+              onClick={handleHangUp}
               title="Leave call"
               className="p-3.5 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white rounded-full transition-all duration-200 cursor-pointer room-btn shadow-[0_0_15px_rgba(220,38,38,0.3)]"
             >

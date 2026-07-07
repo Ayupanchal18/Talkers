@@ -117,7 +117,7 @@ export default function RoomPage({ route, navigation }: any) {
     return pc;
   };
 
-  const { sendMessage, toggleAudio, toggleVideo, sendOffer, sendAnswer, sendIceCandidate } =
+  const { socket, sendMessage, toggleAudio, toggleVideo, sendOffer, sendAnswer, sendIceCandidate } =
     useMeetingSocket({
       roomCode: code || '',
       isMediaReady: !!localStream,
@@ -301,6 +301,21 @@ export default function RoomPage({ route, navigation }: any) {
   };
 
   const handleHangUp = () => {
+    // 1. Explicitly disconnect socket from the signaling room
+    if (socket) {
+      socket.emit('room:leave');
+      socket.disconnect();
+    }
+    // 2. Shut down camera and audio hardware tracks immediately
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track: any) => track.stop());
+      localStreamRef.current = null;
+    }
+    setLocalStream(null);
+    // 3. Terminate and clear all RTCPeerConnections
+    pcsRef.current.forEach((pc) => pc.close());
+    pcsRef.current.clear();
+    // 4. Finally transition screen layout back to Home
     navigation.navigate('Home');
   };
 
