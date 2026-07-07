@@ -143,7 +143,7 @@ export default function LobbyPage() {
               autoPlay
               playsInline
               muted
-              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+              className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-300 ${
                 videoEnabled && localStream && !permissionError ? 'opacity-100' : 'opacity-0 pointer-events-none'
               }`}
             />

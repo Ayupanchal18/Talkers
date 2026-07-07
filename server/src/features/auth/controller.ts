@@ -39,6 +39,7 @@ export async function register(req: Request, res: Response, next: NextFunction):
       data: {
         user: result.user,
         accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
       },
     });
   } catch (error) {
@@ -58,6 +59,7 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
       data: {
         user: result.user,
         accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
       },
     });
   } catch (error) {
@@ -68,7 +70,7 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
 export async function refresh(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const cookies = parseCookies(req.headers.cookie);
-    const token = cookies['refreshToken'];
+    const token = cookies['refreshToken'] || (req.headers['x-refresh-token'] as string);
 
     const result = await authService.refresh(token);
 
@@ -79,6 +81,7 @@ export async function refresh(req: Request, res: Response, next: NextFunction): 
       status: 'success',
       data: {
         accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
       },
     });
   } catch (error) {

@@ -12,6 +12,8 @@ import {
   PhoneOff,
   Send,
   X,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/store/useAuthStore';
 import { useMeetingSocket } from '../hooks/useMeetingSocket';
@@ -31,7 +33,9 @@ interface RemoteVideoProps {
 }
 
 function RemoteVideo({ stream, visible }: RemoteVideoProps) {
+  const [fitMode, setFitMode] = useState<'cover' | 'contain'>('contain');
   const ref = useRef<HTMLVideoElement>(null);
+  
   useEffect(() => {
     if (ref.current && stream) {
       ref.current.srcObject = stream;
@@ -42,14 +46,35 @@ function RemoteVideo({ stream, visible }: RemoteVideoProps) {
   }, [stream]);
 
   return (
-    <video
-      ref={ref}
-      autoPlay
-      playsInline
-      className={`room-video-frame absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
-        visible ? 'opacity-100' : 'opacity-0 pointer-events-none'
-      }`}
-    />
+    <div className="absolute inset-0 w-full h-full">
+      <video
+        ref={ref}
+        autoPlay
+        playsInline
+        className={`room-video-frame absolute inset-0 w-full h-full object-${fitMode} transition-opacity duration-300 ${
+          visible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+      />
+      {visible && stream && (
+        <button
+          onClick={() => setFitMode((prev) => (prev === 'cover' ? 'contain' : 'cover'))}
+          className="absolute top-3 left-3 z-10 flex items-center gap-1.5 bg-[#0c1220]/75 hover:bg-[#0c1220] text-slate-300 hover:text-white border border-[#1e293b]/50 px-2 py-1.5 rounded-lg text-[10px] font-bold tracking-wide uppercase shadow-md transition-colors"
+          title={fitMode === 'cover' ? 'Fit to Screen' : 'Fill Screen'}
+        >
+          {fitMode === 'cover' ? (
+            <>
+              <Minimize2 size={12} />
+              <span>Fit Video</span>
+            </>
+          ) : (
+            <>
+              <Maximize2 size={12} />
+              <span>Fill Screen</span>
+            </>
+          )}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -434,7 +459,7 @@ export default function RoomPage() {
                 autoPlay
                 playsInline
                 muted
-                className={`room-video-frame absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+                className={`room-video-frame absolute inset-0 w-full h-full object-contain transition-opacity duration-300 ${
                   videoEnabled && localStream ? 'opacity-100' : 'opacity-0 pointer-events-none'
                 }`}
               />

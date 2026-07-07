@@ -12,9 +12,13 @@ export const initSocket = (server: HTTPServer): Server => {
     ? [process.env.FRONTEND_URL]
     : ['http://localhost:5173', 'https://localhost:5173'];
 
+  const socketCorsOrigin = process.env.NODE_ENV === 'production'
+    ? allowedOrigins
+    : '*';
+
   io = new Server(server, {
     cors: {
-      origin: allowedOrigins,
+      origin: socketCorsOrigin,
       methods: ['GET', 'POST'],
       credentials: true,
     },
