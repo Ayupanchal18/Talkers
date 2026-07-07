@@ -54,6 +54,7 @@ export default function LobbyPage() {
         return;
       }
 
+      try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: videoEnabled ? {
             width: { ideal: 1920 },
